@@ -11,44 +11,47 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Health check for infrastructure
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok" });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    console.log("Starting in development mode...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
+      root: process.cwd()
     });
     
-    // Use vite's connect instance as middleware
     app.use(vite.middlewares);
 
-    // SPA fallback for development: serve index.html for all other routes
+    // Fallback for SPA routes in dev
     app.get('*', async (req, res, next) => {
       const url = req.originalUrl;
+      // Skip if it looks like an API or internal Vite request
+      if (url.startsWith('/api') || url.includes('.')) {
+        return next();
+      }
+
       try {
-        // 1. Read index.html
-        let template = fs.readFileSync(
-          path.resolve(__dirname, 'index.html'),
-          'utf-8'
-        );
-
-        // 2. Apply Vite HTML transforms. This injects the Vite client,
-        //    and also applies HTML transforms from Vite plugins, e.g. global preambles
-        //    from @vitejs/plugin-react
+        let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
         template = await vite.transformIndexHtml(url, template);
-
-        // 3. Send the rendered HTML back.
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
       } catch (e) {
-        // If an error is caught, let Vite fix the stack trace so it maps back
-        // to your actual source code.
         vite.ssrFixStacktrace(e as Error);
         next(e);
       }
     });
   } else {
-    // Production: serve static files from dist
+    console.log("Starting in production mode...");
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    
+    // Serve static files
+    app.use(express.static(distPath, {
+      index: false // We handle index serving via the fallback below
+    }));
     
     // SPA fallback: all unknown routes serve index.html
     app.get('*', (req, res) => {
