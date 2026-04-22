@@ -10,72 +10,56 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const isProd = process.env.NODE_ENV === "production";
 
-  // 1. Health check for infrastructure
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", mode: process.env.NODE_ENV });
-  });
+  console.log(`[CBT] Starting server in ${isProd ? 'production' : 'development'} mode...`);
 
-  if (process.env.NODE_ENV !== "production") {
-    // 2. Development Setup
-    const vite = await createViteServer({
+  let vite: any;
+  if (!isProd) {
+    vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: "custom", // Allow manual HTML serving
-      root: process.cwd()
+      appType: "spa",
     });
-    
     app.use(vite.middlewares);
-
-    // Manual SPA Fallback for Dev
-    app.get('*', async (req, res, next) => {
-      const url = req.originalUrl;
-      
-      // Skip if it looks like an asset or API call
-      if (url.includes('.') || url.startsWith('/api')) {
-        return next();
-      }
-
-      try {
-        // Read index.html each time in dev to pick up changes
-        const templatePath = path.resolve(process.cwd(), 'index.html');
-        if (!fs.existsSync(templatePath)) return next();
-        
-        const template = fs.readFileSync(templatePath, 'utf-8');
-        const html = await vite.transformIndexHtml(url, template);
-        
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
-      } catch (e) {
-        vite.ssrFixStacktrace(e as Error);
-        next(e);
-      }
-    });
   } else {
-    // 3. Production Setup
-    const distPath = path.join(process.cwd(), 'dist');
-    
-    // Serve static files from dist folder
-    app.use(express.static(distPath, { 
-      index: false,
-      maxAge: '1d' 
-    }));
-    
-    // Catch-all SPA fallback for production
-    app.get('*', (req, res) => {
-      const indexPath = path.resolve(distPath, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        res.status(404).send('Application build not found. Please run build script.');
-      }
-    });
+    const distPath = path.resolve(__dirname, "dist");
+    app.use(express.static(distPath));
   }
 
+  // SPA Fallback logic for both Dev and Prod
+  app.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
+    
+    // Skip fallback for API or direct asset calls
+    if (url.startsWith('/api') || url.includes('.')) {
+      return next();
+    }
+
+    try {
+      let template: string;
+      if (!isProd) {
+        const indexPath = path.resolve(__dirname, "index.html");
+        template = fs.readFileSync(indexPath, "utf-8");
+        template = await vite.transformIndexHtml(url, template);
+      } else {
+        const indexPath = path.resolve(__dirname, "dist", "index.html");
+        template = fs.readFileSync(indexPath, "utf-8");
+      }
+      
+      res.status(200).set({ "Content-Type": "text/html" }).end(template);
+    } catch (e) {
+      if (!isProd) vite.ssrFixStacktrace(e as Error);
+      console.error(`[CBT ERROR] Fallback failed for ${url}:`, e);
+      next(e);
+    }
+  });
+
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[CBT SERVER] Listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+    console.log(`[CBT] Server successfully listening on 0.0.0.0:${PORT}`);
   });
 }
 
-startServer().catch((err) => {
-  console.error("Critical server failure:", err);
+startServer().catch(err => {
+  console.error("[CBT FATAL] Server failed to start:", err);
   process.exit(1);
 });
