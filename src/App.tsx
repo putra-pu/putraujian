@@ -20,7 +20,26 @@ import ExamManagement from './pages/exams/ExamManagement';
 import SubjectManagement from './pages/subjects/SubjectManagement';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Home } from 'lucide-react';
+
+const NotFound = () => (
+  <div className="min-h-screen bg-[#fef2f2] flex flex-col items-center justify-center p-8 text-center">
+    <div className="w-24 h-24 bg-white rounded-[2rem] shadow-xl flex items-center justify-center text-brand-600 mb-8 border border-white">
+      <AlertTriangle size={48} />
+    </div>
+    <h1 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">404 - Halaman Hilang</h1>
+    <p className="text-slate-500 font-medium max-w-md mb-8 leading-relaxed">
+      Sistem tidak dapat menemukan halaman yang Anda cari. Pastikan link sudah benar atau kembali ke dashboard.
+    </p>
+    <Link 
+      to="/" 
+      className="inline-flex items-center space-x-2 px-8 py-4 bg-brand-600 text-white rounded-2xl font-bold shadow-lg shadow-brand-500/20 hover:bg-brand-700 transition"
+    >
+      <Home size={20} />
+      <span>Kembali ke Beranda</span>
+    </Link>
+  </div>
+);
 
 const ConfigWarning = () => {
   const { isConfigured } = useAuth();
@@ -110,6 +129,7 @@ const AppLayout = () => {
             
             {/* Shared Routes */}
             <Route path="results" element={<ProtectedRoute roles={['student', 'teacher', 'admin']}><ResultsHistory /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
       </div>
