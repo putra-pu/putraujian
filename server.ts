@@ -11,60 +11,71 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Health check for infrastructure
+  // 1. Health check for infrastructure
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+    res.json({ status: "ok", mode: process.env.NODE_ENV });
   });
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    console.log("Starting in development mode...");
+    // 2. Development Setup
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: "custom", // Allow manual HTML serving
       root: process.cwd()
     });
     
     app.use(vite.middlewares);
 
-    // Fallback for SPA routes in dev
+    // Manual SPA Fallback for Dev
     app.get('*', async (req, res, next) => {
       const url = req.originalUrl;
-      // Skip if it looks like an API or internal Vite request
-      if (url.startsWith('/api') || url.includes('.')) {
+      
+      // Skip if it looks like an asset or API call
+      if (url.includes('.') || url.startsWith('/api')) {
         return next();
       }
 
       try {
-        let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
-        template = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+        // Read index.html each time in dev to pick up changes
+        const templatePath = path.resolve(process.cwd(), 'index.html');
+        if (!fs.existsSync(templatePath)) return next();
+        
+        const template = fs.readFileSync(templatePath, 'utf-8');
+        const html = await vite.transformIndexHtml(url, template);
+        
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
       } catch (e) {
         vite.ssrFixStacktrace(e as Error);
         next(e);
       }
     });
   } else {
-    console.log("Starting in production mode...");
+    // 3. Production Setup
     const distPath = path.join(process.cwd(), 'dist');
     
-    // Serve static files
-    app.use(express.static(distPath, {
-      index: false // We handle index serving via the fallback below
+    // Serve static files from dist folder
+    app.use(express.static(distPath, { 
+      index: false,
+      maxAge: '1d' 
     }));
     
-    // SPA fallback: all unknown routes serve index.html
+    // Catch-all SPA fallback for production
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexPath = path.resolve(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('Application build not found. Please run build script.');
+      }
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`[CBT SERVER] Listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
   });
 }
 
 startServer().catch((err) => {
-  console.error("Failed to start server:", err);
+  console.error("Critical server failure:", err);
   process.exit(1);
 });
