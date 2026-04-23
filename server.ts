@@ -8,45 +8,43 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function bootstrap() {
   const app = express();
+  // Always bind to port 3000 as per AI Studio requirements
   const port = 3000;
   const isProd = process.env.NODE_ENV === "production";
 
-  console.log(`[CBT LOG] Initializing server in ${isProd ? 'PRODUCTION' : 'DEVELOPMENT'} mode...`);
-  console.log(`[CBT LOG] Current Working Directory: ${process.cwd()}`);
-  console.log(`[CBT LOG] __dirname: ${__dirname}`);
+  console.log(`[CBT SERVER] Starting... Mode: ${isProd ? "PRODUCTION" : "DEVELOPMENT"}`);
 
-  // Health check - place this FIRST
+  // 1. Health check (Crucial for Cloud Run)
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", mode: process.env.NODE_ENV, timestamp: new Date().toISOString() });
+    res.status(200).json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      env: process.env.NODE_ENV 
+    });
   });
 
   let vite: any;
   if (!isProd) {
-    console.log("[CBT LOG] Creating Vite server in middleware mode...");
     vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-    console.log("[CBT LOG] Vite middlewares attached.");
   } else {
     const distPath = path.resolve(__dirname, "dist");
-    console.log(`[CBT LOG] Serving static files from: ${distPath}`);
-    if (!fs.existsSync(distPath)) {
-      console.error(`[CBT ERROR] Dist folder NOT FOUND at ${distPath}`);
-    }
-    app.use(express.static(distPath, { index: false }));
+    // Serve static files from dist
+    app.use(express.static(distPath, { 
+      index: false,
+      maxAge: '1h'
+    }));
   }
 
-  // Global Fallback for SPA - Catch everything else
+  // 2. SPA Fallback - Catch-all handler
   app.get("*", async (req, res, next) => {
     const url = req.originalUrl;
-    console.log(`[CBT LOG] Request received: ${url}`);
 
-    // Skip assets (anything with a dot that isn't a known route) 
-    // and API calls
-    if (url.startsWith("/api") || (url.includes(".") && !url.includes("index.html") && !url.includes("login"))) {
-      console.log(`[CBT LOG] Skipping fallback for asset-like URL: ${url}`);
+    // Ignore asset-like requests (containing dots) that weren't caught by static middleware
+    if (url.includes(".") && !url.includes("index.html") && !url.includes("login")) {
       return next();
     }
 
@@ -56,41 +54,45 @@ async function bootstrap() {
       const prodIndexPath = path.resolve(__dirname, "dist", "index.html");
 
       if (!isProd && vite) {
-        console.log(`[CBT LOG] Attempting Dev fallback for: ${url}`);
+        // Dev mode: Transform index.html through Vite
         if (fs.existsSync(devIndexPath)) {
           template = fs.readFileSync(devIndexPath, "utf-8");
           template = await vite.transformIndexHtml(url, template);
-        } else if (fs.existsSync(prodIndexPath)) {
-          console.warn("[CBT LOG] Dev index missing, falling back to Prod index");
-          template = fs.readFileSync(prodIndexPath, "utf-8");
         } else {
-          throw new Error("No index.html found in root or dist");
+          return res.status(404).send("Dev index.html not found");
         }
       } else {
-        console.log(`[CBT LOG] Attempting Prod fallback for: ${url}`);
+        // Prod mode: Serve built index.html
         if (fs.existsSync(prodIndexPath)) {
           template = fs.readFileSync(prodIndexPath, "utf-8");
         } else if (fs.existsSync(devIndexPath)) {
-          console.warn("[CBT LOG] Prod index missing, falling back to Dev index");
+          // Fallback to dev index if prod index is missing
           template = fs.readFileSync(devIndexPath, "utf-8");
         } else {
-          throw new Error("No index.html found in root or dist");
+          return res.status(404).send("Application index.html not found. Please run 'npm run build'.");
         }
       }
-      
+
       res.status(200).set({ "Content-Type": "text/html" }).send(template);
     } catch (e) {
-      console.error(`[CBT ERROR] SPA Fallback total failure for ${url}:`, e);
-      res.status(500).send(`Server Routing Error: ${(e as Error).message}. Mode: ${process.env.NODE_ENV}`);
+      console.error(`[CBT SERVER] Fallback Error for ${url}:`, e);
+      if (!isProd && vite) vite.ssrFixStacktrace(e as Error);
+      next(e);
     }
   });
 
+  // 3. Global Error Handler
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("[CBT SERVER] Global Error:", err);
+    res.status(500).send("Internal Server Error (CBT System)");
+  });
+
   app.listen(port, "0.0.0.0", () => {
-    console.log(`[CBT] OK: Server listening on 0.0.0.0:${port}`);
+    console.log(`[CBT SERVER] Running on http://0.0.0.0:${port}`);
   });
 }
 
 bootstrap().catch(err => {
-  console.error("[CBT] Fatal startup error:", err);
+  console.error("[CBT SERVER] Critical Startup Failure:", err);
   process.exit(1);
 });
