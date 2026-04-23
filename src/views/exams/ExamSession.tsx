@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Clock, 
@@ -25,7 +27,7 @@ function cn(...inputs: any[]) {
 const ExamSession = ({ examId: propExamId }: { examId?: string }) => {
   const params = useParams();
   const examId = propExamId || params?.examId as string;
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   
   const [exam, setExam] = useState<any>(null);
@@ -165,7 +167,7 @@ const ExamSession = ({ examId: propExamId }: { examId?: string }) => {
       // Clear autosave
       localStorage.removeItem(`exam_autosave_${examId}_${user?.id}`);
       
-      navigate('/app/siswa');
+      router.push('/app/siswa');
     } catch (err: any) {
       console.error('Submission failed:', err);
       // Detailed error reporting for the user
@@ -173,7 +175,7 @@ const ExamSession = ({ examId: propExamId }: { examId?: string }) => {
       alert(`Gagal mengirim jawaban: ${errorMsg}\n\nPastikan Anda sudah menjalankan SQL migrasi di Supabase.`);
       setIsSubmitting(false);
     }
-  }, [examId, user, questions, answers, navigate, isSubmitting]);
+  }, [examId, user, questions, answers, router, isSubmitting]);
 
   const handleSubmit = () => {
     setShowConfirmModal(true);

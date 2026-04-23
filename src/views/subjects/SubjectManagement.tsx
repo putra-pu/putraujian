@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { subjectService, Subject } from '../../services/subjectService';
 import { motion, AnimatePresence } from 'motion/react';

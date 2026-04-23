@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { GraduationCap, Timer, Trophy, History, PlayCircle, BookCheck } from 'lucide-react';

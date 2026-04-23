@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { examService, Exam } from '../../services/examService';
 import { subjectService, Subject } from '../../services/subjectService';

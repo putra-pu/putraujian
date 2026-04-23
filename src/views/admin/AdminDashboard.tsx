@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { LayoutDashboard, Users, FileQuestion, Calendar, BarChart3, ShieldCheck } from 'lucide-react';

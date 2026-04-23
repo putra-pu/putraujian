@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { resultService, ExamResult } from '../../services/resultService';
 import { useAuth } from '../../hooks/useAuth';

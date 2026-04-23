@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { BookOpen, FileQuestion, GraduationCap, ClipboardList, TrendingUp } from 'lucide-react';

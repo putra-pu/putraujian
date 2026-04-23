@@ -20,6 +20,7 @@ function cn(...inputs: any[]) {
 const Sidebar = () => {
   const { profile } = useAuth();
   const location = useLocation();
+  const pathname = location.pathname;
 
   const currentRole = profile?.role || 'student';
   
@@ -95,7 +96,7 @@ const Sidebar = () => {
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">Menu Utama</div>
         {filteredMenu.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = pathname === item.path;
           return (
             <Link
               key={item.path}

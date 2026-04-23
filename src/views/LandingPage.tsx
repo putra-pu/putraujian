@@ -1,3 +1,5 @@
+"use client";
+
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { BookOpen, ShieldCheck, GraduationCap, ArrowRight } from 'lucide-react';
